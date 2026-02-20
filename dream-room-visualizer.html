@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dream Room Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0c14;--surface:#16131f;--border:rgba(255,255,255,.07);
+  --text:#f0eaf8;--muted:#6b6480;--accent:#c084fc;--accent2:#818cf8;
+  --r:14px;
+}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overflow-x:hidden}
+
+/* ── BG mesh ── */
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 20% 10%,rgba(192,132,252,.07) 0%,transparent 60%),
+             radial-gradient(ellipse 60% 50% at 80% 80%,rgba(129,140,248,.06) 0%,transparent 55%);
+  pointer-events:none;z-index:0}
+
+/* ── Layout ── */
+#app{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:32px 24px 80px}
+
+/* ── Header ── */
+header{text-align:center;margin-bottom:52px}
+.eyebrow{font-size:11px;letter-spacing:5px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;opacity:.8}
+h1{font-family:'Playfair Display',serif;font-size:clamp(2.4rem,5.5vw,4rem);font-weight:400;line-height:1.1;
+   background:linear-gradient(135deg,#f0eaf8 0%,#c084fc 50%,#818cf8 100%);
+   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:14px}
+header p{color:var(--muted);font-size:15px;max-width:420px;margin:0 auto;line-height:1.6}
+
+/* ── Card ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:28px}
+
+/* ── Form grid ── */
+#form-wrap{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+@media(max-width:640px){#form-wrap{grid-template-columns:1fr}}
+
+.field{display:flex;flex-direction:column;gap:8px}
+.field label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{
+  background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;
+  padding:13px 16px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;
+  transition:border-color .2s,box-shadow .2s;outline:none;appearance:none;
+}
+.field input:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(192,132,252,.12)}
+.field select option{background:#1e1a2e}
+.field-row{display:flex;gap:10px}
+.field-row input{flex:1;min-width:0}
+.unit-label{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;
+  padding:13px 14px;color:var(--muted);font-size:13px;white-space:nowrap;display:flex;align-items:center}
+
+/* ── Style selector ── */
+#style-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:28px}
+.style-card{border:1px solid var(--border);border-radius:10px;padding:14px 10px;text-align:center;
+  cursor:pointer;transition:all .2s;background:rgba(255,255,255,.02);position:relative;overflow:hidden}
+.style-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .3s;border-radius:10px}
+.style-card:hover{border-color:rgba(255,255,255,.15);transform:translateY(-2px)}
+.style-card.selected{border-color:var(--accent);background:rgba(192,132,252,.08)}
+.style-card.selected::before{opacity:1}
+.style-emoji{font-size:26px;margin-bottom:6px;display:block}
+.style-name{font-size:11px;font-weight:500;letter-spacing:.5px;color:var(--muted)}
+.style-card.selected .style-name{color:var(--accent)}
+
+/* ── Generate btn ── */
+#gen-btn{width:100%;padding:16px;border:none;border-radius:10px;cursor:pointer;
+  background:linear-gradient(135deg,#c084fc,#818cf8);color:#fff;
+  font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;letter-spacing:.5px;
+  transition:all .25s;position:relative;overflow:hidden}
+#gen-btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,0);transition:background .2s}
+#gen-btn:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(192,132,252,.35)}
+#gen-btn:hover::after{background:rgba(255,255,255,.08)}
+#gen-btn:active{transform:translateY(0)}
+#gen-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+/* ── Output section ── */
+#output{margin-top:36px;display:none}
+#output.visible{display:block;animation:fadeUp .5s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Room Scene ── */
+#scene-wrap{position:relative;width:100%;aspect-ratio:16/9;border-radius:14px;overflow:hidden;
+  margin-bottom:20px;border:1px solid var(--border)}
+
+/* 3D CSS Room using perspective */
+#room-scene{width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center;
+  perspective:900px;background:#000}
+
+.room-container{position:relative;width:82%;height:82%;transform-style:preserve-3d;
+  transform:rotateX(4deg) rotateY(-6deg)}
+
+/* walls */
+.wall-back,.wall-floor,.wall-left,.wall-ceiling{position:absolute;transform-style:preserve-3d;transition:background 1s,background-image 1s}
+
+.wall-back{inset:0;transform:translateZ(0px)}
+.wall-left{
+  top:0;bottom:0;left:0;width:220px;
+  transform-origin:left center;
+  transform:rotateY(52deg) translateX(-2px);
+}
+.wall-ceiling{
+  left:0;right:0;top:0;height:140px;
+  transform-origin:top center;
+  transform:rotateX(-52deg) translateY(-2px);
+}
+.wall-floor{
+  left:0;right:0;bottom:0;height:180px;
+  transform-origin:bottom center;
+  transform:rotateX(52deg) translateY(2px);
+}
+
+/* furniture items drawn with CSS */
+.room-item{position:absolute;transition:all .8s cubic-bezier(.4,0,.2,1)}
+
+/* loading shimmer */
+.shimmer{background:linear-gradient(90deg,rgba(255,255,255,.03) 0%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.03) 100%);
+  background-size:200% 100%;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── Info bar ── */
+#info-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  padding:16px 20px;background:rgba(255,255,255,.03);border:1px solid var(--border);
+  border-radius:10px;margin-bottom:16px}
+.info-pill{display:flex;align-items:center;gap:8px}
+.info-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.info-text{font-size:13px;color:var(--muted)}
+.info-text strong{color:var(--text)}
+.badge{padding:4px 10px;border-radius:20px;font-size:11px;letter-spacing:1px;font-weight:500;
+  background:rgba(192,132,252,.12);color:var(--accent);border:1px solid rgba(192,132,252,.2)}
+
+/* ── Details grid ── */
+#details-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:600px){#details-grid{grid-template-columns:1fr 1fr}}
+.detail-card{padding:14px 16px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px}
+.detail-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.detail-value{font-size:14px;font-weight:500;color:var(--text)}
+
+/* ── Furniture list ── */
+#furniture-list{display:flex;flex-wrap:wrap;gap:8px}
+.fur-tag{padding:6px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border);
+  border-radius:20px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.fur-tag span{font-size:15px}
+
+/* ── Prompt box ── */
+#prompt-box{margin-top:16px;padding:16px;background:rgba(192,132,252,.04);
+  border:1px solid rgba(192,132,252,.15);border-radius:10px}
+.prompt-label{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;opacity:.7}
+#prompt-text{font-size:12px;color:var(--muted);line-height:1.7;font-style:italic}
+#copy-btn{margin-top:10px;padding:7px 16px;background:rgba(192,132,252,.1);border:1px solid rgba(192,132,252,.2);
+  border-radius:6px;color:var(--accent);font-size:11px;letter-spacing:1px;cursor:pointer;transition:all .2s}
+#copy-btn:hover{background:rgba(192,132,252,.18)}
+
+/* ── Progress bar ── */
+#progress-wrap{position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,.06);border-radius:0 0 14px 14px}
+#progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#c084fc,#818cf8);transition:width .4s;border-radius:0 0 14px 14px}
+
+/* ── Floating particles ── */
+.particle{position:fixed;border-radius:50%;pointer-events:none;z-index:0;animation:float linear infinite}
+@keyframes float{0%{transform:translateY(100vh) scale(0);opacity:0}
+  10%{opacity:1}90%{opacity:.3}100%{transform:translateY(-10vh) scale(1.2);opacity:0}}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <header>
+    <p class="eyebrow">AI-Powered Interior Design</p>
+    <h1>Dream Room<br><em style="font-style:italic">Visualizer</em></h1>
+    <p>Enter your room dimensions and pick a style — watch your dream room come to life in 3D</p>
+  </header>
+
+  <!-- Form Card -->
+  <div class="card" style="margin-bottom:24px">
+    <div style="font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:18px">Room Dimensions</div>
+    <div id="form-wrap">
+      <div class="field">
+        <label>Room Length</label>
+        <div class="field-row">
+          <input type="number" id="room-length" value="12" min="6" max="50" placeholder="12"/>
+          <div class="unit-label">ft</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Room Width</label>
+        <div class="field-row">
+          <input type="number" id="room-width" value="10" min="6" max="50" placeholder="10"/>
+          <div class="unit-label">ft</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Ceiling Height</label>
+        <div class="field-row">
+          <input type="number" id="room-height" value="9" min="7" max="20" placeholder="9"/>
+          <div class="unit-label">ft</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Room Type</label>
+        <select id="room-type">
+          <option value="bedroom">Bedroom</option>
+          <option value="living">Living Room</option>
+          <option value="studio">Studio / Office</option>
+          <option value="dining">Dining Room</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:16px">Choose Your Style</div>
+    <div id="style-grid">
+      <div class="style-card selected" data-style="Cyberpunk"><span class="style-emoji">🌆</span><div class="style-name">Cyberpunk</div></div>
+      <div class="style-card" data-style="Boho"><span class="style-emoji">🌿</span><div class="style-name">Boho</div></div>
+      <div class="style-card" data-style="Minimalist"><span class="style-emoji">◻️</span><div class="style-name">Minimalist</div></div>
+      <div class="style-card" data-style="Cottagecore"><span class="style-emoji">🌸</span><div class="style-name">Cottagecore</div></div>
+      <div class="style-card" data-style="Industrial"><span class="style-emoji">⚙️</span><div class="style-name">Industrial</div></div>
+      <div class="style-card" data-style="Japandi"><span class="style-emoji">🍵</span><div class="style-name">Japandi</div></div>
+      <div class="style-card" data-style="Art Deco"><span class="style-emoji">✨</span><div class="style-name">Art Deco</div></div>
+      <div class="style-card" data-style="Maximalist"><span class="style-emoji">🎨</span><div class="style-name">Maximalist</div></div>
+    </div>
+
+    <button id="gen-btn" onclick="generateRoom()">✦ Visualize My Dream Room</button>
+  </div>
+
+  <!-- Output -->
+  <div id="output">
+    <!-- Info bar -->
+    <div id="info-bar">
+      <div class="info-pill">
+        <div class="info-dot"></div>
+        <span class="info-text">Showing <strong id="out-style">—</strong> style room</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="badge" id="out-size">—</span>
+        <span class="badge" id="out-type">—</span>
+      </div>
+    </div>
+
+    <!-- 3D Room Scene -->
+    <div id="scene-wrap">
+      <div id="room-scene">
+        <div class="room-container" id="room-container">
+          <div class="wall-back" id="wall-back"></div>
+          <div class="wall-left" id="wall-left"></div>
+          <div class="wall-ceiling" id="wall-ceiling"></div>
+          <div class="wall-floor" id="wall-floor"></div>
+          <!-- furniture injected here -->
+        </div>
+      </div>
+      <div id="progress-wrap"><div id="progress-bar"></div></div>
+    </div>
+
+    <!-- Details -->
+    <div id="details-grid">
+      <div class="detail-card"><div class="detail-label">Floor Area</div><div class="detail-value" id="d-area">—</div></div>
+      <div class="detail-card"><div class="detail-label">Volume</div><div class="detail-value" id="d-vol">—</div></div>
+      <div class="detail-card"><div class="detail-label">Mood</div><div class="detail-value" id="d-mood">—</div></div>
+    </div>
+
+    <!-- Furniture -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:14px">Recommended Furniture & Decor</div>
+      <div id="furniture-list"></div>
+    </div>
+
+    <!-- AI Prompt -->
+    <div id="prompt-box">
+      <div class="prompt-label">🤖 AI Image Prompt — paste into Midjourney / DALL·E / Stable Diffusion</div>
+      <div id="prompt-text"></div>
+      <button id="copy-btn" onclick="copyPrompt()">⧉ Copy Prompt</button>
+    </div>
+  </div>
+</div>
+
+<!-- Floating particles -->
+<script>
+for(let i=0;i<18;i++){
+  const p=document.createElement('div');
+  p.className='particle';
+  const s=Math.random()*4+2;
+  p.style.cssText=`width:${s}px;height:${s}px;left:${Math.random()*100}%;
+    background:${Math.random()>.5?'rgba(192,132,252,':'rgba(129,140,248,'}${Math.random()*.15+.05}});
+    animation-duration:${Math.random()*20+12}s;animation-delay:${Math.random()*15}s`;
+  document.body.appendChild(p);
+}
+</script>
+
+<script>
+// ── Style Themes ──────────────────────────────────────────────────────────────
+const THEMES = {
+  "Cyberpunk":{
+    wallColor:"#0a0a1a",
+    wallGrad:"linear-gradient(180deg,#0d0d2b 0%,#090915 100%)",
+    floorColor:"#111128",
+    floorGrad:"linear-gradient(180deg,#111128,#0a0a1f)",
+    ceilColor:"#07070f",
+    accentColor:"#00f5ff",
+    accent2:"#ff00aa",
+    lightColor:"rgba(0,245,255,0.18)",
+    mood:"Electric & Futuristic",
+    palette:["#00f5ff","#ff00aa","#7b00ff","#0a0a1a","#1a1a3a"],
+    furniture:{
+      bedroom:["🛏 LED-lit Platform Bed","🖥 Dual Monitor Desk","💜 Neon Strip Lights","🪞 Holographic Mirror","🎧 Gaming Chair","🌆 Cityscape Wall Mural"],
+      living:["🛋 Black Modular Sofa","📺 Curved 8K Screen","💡 Neon Tube Lamps","🎮 Gaming Console Setup","🪟 Smart Glass Windows","🤖 Robot Art Sculpture"],
+      studio:["💺 Ergonomic Pod Chair","🖥 Triple Monitor Rig","💡 RGB LED Panels","📦 Cable Management Rack","🎵 Soundproofing Panels","⚡ Wireless Charging Pad"],
+      dining:["🪑 Acrylic Ghost Chairs","🍽 Black Glass Table","💡 Neon Pendant Light","🌆 Cityscape Backdrop","🔵 Blue LED Floor Strip","🪴 Synthetic Neon Plant"]
+    },
+    particles:["🔵","⚡","💜","🔷"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, cyberpunk aesthetic, neon blue and magenta lighting, dark walls with glowing circuit patterns, holographic elements, LED strip lights, futuristic furniture, ultra-modern tech gadgets, rain-streaked floor-to-ceiling windows with city night view, 8K hyperrealistic, architectural photography, dramatic volumetric lighting`
+  },
+  "Boho":{
+    wallColor:"#f5ede0",
+    wallGrad:"linear-gradient(180deg,#f5ede0 0%,#ede0cc 100%)",
+    floorColor:"#c4a882",
+    floorGrad:"linear-gradient(180deg,#c4a882,#b8996e)",
+    ceilColor:"#efe4d4",
+    accentColor:"#d4863a",
+    accent2:"#7a9e6e",
+    lightColor:"rgba(255,200,120,0.25)",
+    mood:"Warm & Earthy",
+    palette:["#d4863a","#7a9e6e","#c4a882","#f5ede0","#8b5e3c"],
+    furniture:{
+      bedroom:["🛏 Rattan Canopy Bed","🪴 Hanging Macramé Planters","🧣 Layered Boho Rugs","🪆 Wicker Nightstand","💡 Fairy String Lights","🖼 Tapestry Wall Art"],
+      living:["🛋 Linen Sofa w/ Throw","🪑 Rattan Peacock Chair","🪴 Monstera & Fiddle Leaf","🕯 Pillar Candle Clusters","📚 Stacked Vintage Books","🧺 Woven Storage Baskets"],
+      studio:["🪑 Floor Cushion Seating","🌿 Trailing Pothos Shelf","💡 Warm Amber Pendant","🧵 Woven Wall Hanging","📿 Crystal & Gem Decor","🎨 Natural Wood Desk"],
+      dining:["🪑 Mix-Match Wood Chairs","🍽 Ceramic Plate Collection","🕯 Candlestick Centerpiece","🌾 Dried Pampas Grass","🧺 Wicker Pendant Lamps","🪴 Herb Garden Centerpiece"]
+    },
+    particles:["🌿","✨","🍃","🌸"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, bohemian aesthetic, warm earthy tones, rattan and wicker furniture, macramé wall hangings, layered colorful rugs, hanging plants and monstera leaves, warm golden hour sunlight through sheer curtains, terracotta pots, vintage textiles, cozy and relaxed atmosphere, 8K professional interior photography`
+  },
+  "Minimalist":{
+    wallColor:"#f8f7f5",
+    wallGrad:"linear-gradient(180deg,#f8f7f5 0%,#f0eeea 100%)",
+    floorColor:"#d4cfc8",
+    floorGrad:"linear-gradient(180deg,#d4cfc8,#c8c2ba)",
+    ceilColor:"#fafaf8",
+    accentColor:"#1a1a1a",
+    accent2:"#888",
+    lightColor:"rgba(255,255,255,0.6)",
+    mood:"Clean & Serene",
+    palette:["#1a1a1a","#888","#d4cfc8","#f8f7f5","#e8e4de"],
+    furniture:{
+      bedroom:["🛏 Low Profile Platform Bed","🪟 Floor-to-Ceiling Window","💡 Recessed Ceiling Lights","🪞 Full Wall Mirror","🗄 Hidden Storage Drawers","🌱 Single Bonsai Tree"],
+      living:["🛋 White Linen Sectional","☕ Walnut Coffee Table","💡 Arc Floor Lamp","🖼 Single Large Canvas Art","🪴 One Statement Plant","📐 Geometric Shelf Unit"],
+      studio:["💺 Herman Miller Chair","🖥 Standing Desk","💡 Natural Daylight Lamp","📁 Floating Shelves","🖊 Minimal Pen Holder","🗃 Hidden Cable System"],
+      dining:["🪑 Eames Style Chairs","🍽 White Marble Table","💡 Saucer Pendant Light","🌾 Single Stem Vase","🕯 Unscented White Candle","🧊 Ice Bucket Bar Cart"]
+    },
+    particles:["◻","▪","○","·"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, minimalist aesthetic, white and warm grey palette, clean lines, abundant natural light, low-profile furniture, hidden storage, single statement plant, polished concrete or light oak floors, no clutter, breathing room, Scandinavian influence, 8K ultra sharp architectural photography`
+  },
+  "Cottagecore":{
+    wallColor:"#e8f0e0",
+    wallGrad:"linear-gradient(180deg,#e8f0e0 0%,#dce8d0 100%)",
+    floorColor:"#9c7b5a",
+    floorGrad:"linear-gradient(180deg,#9c7b5a,#8a6a4a)",
+    ceilColor:"#eff5e8",
+    accentColor:"#6b8f4e",
+    accent2:"#c4895a",
+    lightColor:"rgba(200,230,160,0.2)",
+    mood:"Whimsical & Cozy",
+    palette:["#6b8f4e","#c4895a","#e8f0e0","#9c7b5a","#f0c8a0"],
+    furniture:{
+      bedroom:["🛏 Wrought Iron Bed Frame","🌷 Floral Duvet Cover","🕯 Beeswax Candles","📚 Vintage Book Stack","🌿 Dried Flower Bundles","🪟 Lace Curtain Panels"],
+      living:["🛋 Overstuffed Floral Sofa","🪑 Windsor Rocking Chair","🕯 Fireplace Mantle","🍵 Vintage Tea Set Display","📚 Cottage Book Nook","🌸 Fresh Wildflower Vase"],
+      studio:["🪑 Vintage Writing Desk","📜 Pressed Flower Frames","🕯 Tallow Candle Light","🧶 Knitting Basket","📿 Crystal Collection","🌿 Herb Drying Rack"],
+      dining:["🪑 Mismatched Vintage Chairs","🍽 Blue Willow China Set","🌹 Rose Centerpiece","🍰 Cake Stand Display","🫙 Mason Jar Collection","🕯 Tapered Candle Sticks"]
+    },
+    particles:["🌸","🍃","🌷","✿"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, cottagecore aesthetic, soft sage green and blush pink, vintage floral wallpaper, dried flowers and herb bundles, exposed wooden beams, antique furniture, lace curtains with golden morning light, wildflowers in vases, woven baskets, cozy fireplace, storybook atmosphere, 8K dreamy soft photography`
+  },
+  "Industrial":{
+    wallColor:"#2a2520",
+    wallGrad:"linear-gradient(180deg,#2a2520 0%,#1e1a16 100%)",
+    floorColor:"#3a3530",
+    floorGrad:"linear-gradient(180deg,#3a3530,#2e2a25)",
+    ceilColor:"#1a1614",
+    accentColor:"#c8873a",
+    accent2:"#888",
+    lightColor:"rgba(200,135,58,0.2)",
+    mood:"Raw & Urban",
+    palette:["#c8873a","#888","#2a2520","#3a3530","#5a5550"],
+    furniture:{
+      bedroom:["🛏 Steel Pipe Bed Frame","🧱 Exposed Brick Accent Wall","💡 Edison Bulb String Lights","🗄 Metal Locker Cabinet","🪞 Riveted Metal Mirror","🔩 Industrial Pipe Shelves"],
+      living:["🛋 Leather Chesterfield Sofa","💡 Pendant Edison Bulbs","🪨 Raw Concrete Coffee Table","📚 Reclaimed Wood Bookcase","🗂 Metal Filing Cabinet Bar","🪟 Iron Frame Windows"],
+      studio:["💺 Vintage Task Chair","🖥 Reclaimed Wood Desk","💡 Gooseneck Metal Lamp","📦 Steel Storage Crates","🎵 Vintage Radio Speaker","⚙️ Gear & Cog Wall Art"],
+      dining:["🪑 Metal Hairpin Leg Chairs","🍽 Butcher Block Table","💡 Industrial Cage Pendants","🍺 Copper Pipe Bar Cart","🧱 Brick Feature Wall","🔧 Wrench Sculpture Art"]
+    },
+    particles:["⚙","🔩","▪","◈"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, industrial loft aesthetic, exposed brick walls, raw concrete floors, steel and iron accents, Edison bulb pendant lights, reclaimed wood furniture, dark moody palette with warm amber accents, ductwork exposed on ceiling, large metal frame windows with urban view, 8K dramatic interior photography`
+  },
+  "Japandi":{
+    wallColor:"#f0ece4",
+    wallGrad:"linear-gradient(180deg,#f0ece4 0%,#e8e0d4 100%)",
+    floorColor:"#b8a888",
+    floorGrad:"linear-gradient(180deg,#b8a888,#a8987a)",
+    ceilColor:"#f5f1ea",
+    accentColor:"#4a6741",
+    accent2:"#8b7355",
+    lightColor:"rgba(255,235,190,0.2)",
+    mood:"Peaceful & Balanced",
+    palette:["#4a6741","#8b7355","#b8a888","#f0ece4","#2a2a22"],
+    furniture:{
+      bedroom:["🛏 Low Futon Platform Bed","🪴 Bonsai Tree","🕯 Washi Paper Lamp","🪵 Live Edge Wood Shelf","🧘 Meditation Corner","🎋 Bamboo Blind"],
+      living:["🛋 Low-seated Linen Sofa","🍵 Tea Ceremony Table","🪴 Ikebana Flower Display","📜 Shoji Screen Panel","💡 Noguchi Paper Lamp","🎋 Bamboo Floor Mat"],
+      studio:["💺 Zaisu Floor Chair","🖥 Minimal Floating Desk","💡 Warm Paper Lantern","📖 Zen Book Display","🪨 Zen Garden Tray","🌿 Moss Art Panel"],
+      dining:["🪑 Low Profile Wood Chairs","🍽 Handmade Ceramic Set","💡 Washi Paper Pendant","🌸 Ikebana Centerpiece","🎋 Bamboo Placemats","🫖 Cast Iron Tetsubin"]
+    },
+    particles:["🌸","🍃","⬡","·"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, Japandi aesthetic (Japanese-Scandinavian fusion), warm neutral tones, natural wood textures, wabi-sabi imperfections, shoji screens, low furniture, bonsai and ikebana arrangements, diffused natural light through rice paper screens, handcrafted ceramic objects, perfect negative space, 8K serene architectural photography`
+  },
+  "Art Deco":{
+    wallColor:"#1a1408",
+    wallGrad:"linear-gradient(180deg,#1a1408 0%,#120e05 100%)",
+    floorColor:"#2a2010",
+    floorGrad:"linear-gradient(180deg,#2a2010,#1e1608)",
+    ceilColor:"#100c04",
+    accentColor:"#d4a017",
+    accent2:"#8b7355",
+    lightColor:"rgba(212,160,23,0.2)",
+    mood:"Glamorous & Opulent",
+    palette:["#d4a017","#8b7355","#1a1408","#2a2010","#c0a060"],
+    furniture:{
+      bedroom:["🛏 Velvet Tufted Headboard","🪞 Sunburst Mirror","💡 Crystal Chandelier","🗄 Lacquered Mirrored Dresser","🪑 Vanity with Globe Lights","✨ Gold Geometric Wallpaper"],
+      living:["🛋 Emerald Velvet Chesterfield","☕ Marble & Brass Coffee Table","💡 Feather Fan Sconces","🖼 Large Deco Mural","🪴 Tall Tropical Palm","🍸 Mirrored Bar Cabinet"],
+      studio:["💺 Tufted Leather Chair","🖥 Brass Inlay Desk","💡 Banker's Emerald Lamp","📚 Lacquered Bookcase","🖊 Ebony Pen Set","🪆 Geometric Figurines"],
+      dining:["🪑 Fanback Velvet Chairs","🍽 Black Lacquer Table","💡 Cascading Crystal Pendant","🌹 Orchid Centerpiece","🥂 Crystal Glassware Display","✨ Geometric Mirror Wall"]
+    },
+    particles:["✨","◆","⬡","★"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, Art Deco aesthetic, deep jewel tones of emerald and sapphire, gold geometric patterns, black lacquered furniture, crystal chandeliers, sunburst mirrors, velvet upholstery, chevron parquet floors, marble accents, 1920s glamour, dramatic theatrical lighting, 8K luxury interior photography`
+  },
+  "Maximalist":{
+    wallColor:"#1a0a2e",
+    wallGrad:"linear-gradient(135deg,#1a0a2e 0%,#2e0a1a 50%,#0a1a2e 100%)",
+    floorColor:"#2a1a3e",
+    floorGrad:"linear-gradient(180deg,#2a1a3e,#1e1030)",
+    ceilColor:"#140820",
+    accentColor:"#ff6b6b",
+    accent2:"#ffd700",
+    lightColor:"rgba(255,107,107,0.15)",
+    mood:"Bold & Eclectic",
+    palette:["#ff6b6b","#ffd700","#00ffcc","#ff00ff","#1a0a2e"],
+    furniture:{
+      bedroom:["🛏 Four-Poster Canopy Bed","🎨 Floor-to-Ceiling Gallery Wall","💡 Mismatched Eclectic Lamps","🪞 Ornate Gilded Mirror","🛍 Overflowing Bookcase","🌈 Layered Pattern Rugs"],
+      living:["🛋 Jewel-tone Velvet Sofa","🎨 Mixed Media Art Wall","🪴 Jungle Plant Collection","💡 Stacked Mismatched Lamps","📚 Color-sorted Bookshelf","🎭 Theatrical Curtain Drapes"],
+      studio:["💺 Leopard Print Chair","🖥 Colorful Eclectic Desk","💡 Neon Sign Wall Art","🎨 Artwork Everywhere","🪆 Global Souvenir Collection","🎵 Vintage Record Wall"],
+      dining:["🪑 Mix of 6 Different Chairs","🍽 Clashing Pattern Tableware","💡 Chandelier of Mixed Lights","🌈 Centerpiece Maximalism","🖼 Floor-to-Ceiling Art","🕯 Dozens of Candles"]
+    },
+    particles:["🌈","✨","🎨","⭐"],
+    prompt:(l,w,h,type)=>`Interior design photo, ${type} room ${l}x${w}ft ${h}ft ceiling, maximalist aesthetic, riot of color and pattern, gallery wall with hundreds of frames, jewel-tone velvet furniture, layered rugs, plants everywhere, mismatched lamps all glowing, bold wallpaper, overflowing bookshelves, global collected objects, dramatic and joyful chaos, 8K vibrant interior photography`
+  }
+};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let selectedStyle = "Cyberpunk";
+
+// ── Style card selection ──────────────────────────────────────────────────────
+document.querySelectorAll(".style-card").forEach(card=>{
+  card.addEventListener("click",()=>{
+    document.querySelectorAll(".style-card").forEach(c=>c.classList.remove("selected"));
+    card.classList.add("selected");
+    selectedStyle=card.dataset.style;
+  });
+});
+
+// ── Generate room ─────────────────────────────────────────────────────────────
+function generateRoom(){
+  const length = parseFloat(document.getElementById("room-length").value)||12;
+  const width  = parseFloat(document.getElementById("room-width").value)||10;
+  const height = parseFloat(document.getElementById("room-height").value)||9;
+  const type   = document.getElementById("room-type").value;
+  const theme  = THEMES[selectedStyle];
+
+  const btn = document.getElementById("gen-btn");
+  btn.disabled=true; btn.textContent="✦ Generating your room...";
+
+  // Animate progress
+  const pb=document.getElementById("progress-bar");
+  pb.style.width="0%";
+  let prog=0;
+  const piv=setInterval(()=>{
+    prog+=Math.random()*8+3;
+    if(prog>92)prog=92;
+    pb.style.width=prog+"%";
+  },120);
+
+  setTimeout(()=>{
+    clearInterval(piv);
+    pb.style.width="100%";
+
+    // Apply theme to room
+    applyTheme(theme, length, width, height, type);
+
+    // Update info
+    document.getElementById("out-style").textContent=selectedStyle;
+    document.getElementById("out-size").textContent=`${length} × ${width} ft`;
+    document.getElementById("out-type").textContent=type.charAt(0).toUpperCase()+type.slice(1);
+    document.getElementById("d-area").textContent=`${(length*width).toFixed(0)} sq ft`;
+    document.getElementById("d-vol").textContent=`${(length*width*height).toFixed(0)} cu ft`;
+    document.getElementById("d-mood").textContent=theme.mood;
+
+    // Furniture
+    const flist=theme.furniture[type]||theme.furniture.bedroom;
+    document.getElementById("furniture-list").innerHTML=flist.map(f=>{
+      const [em,...rest]=f.split(" ");
+      return `<div class="fur-tag"><span>${em}</span>${rest.join(" ")}</div>`;
+    }).join("");
+
+    // Prompt
+    document.getElementById("prompt-text").textContent=theme.prompt(length,width,height,type);
+
+    // Show output
+    document.getElementById("output").classList.add("visible");
+    document.getElementById("output").scrollIntoView({behavior:"smooth",block:"start"});
+
+    btn.disabled=false;
+    btn.textContent="✦ Regenerate Room";
+
+    setTimeout(()=>pb.style.width="0%",800);
+  },1800);
+}
+
+// ── Apply theme to CSS 3D room ────────────────────────────────────────────────
+function applyTheme(theme, l, w, h, type){
+  // Walls
+  const wb=document.getElementById("wall-back");
+  const wl=document.getElementById("wall-left");
+  const wc=document.getElementById("wall-ceiling");
+  const wf=document.getElementById("wall-floor");
+
+  wb.style.background=theme.wallGrad;
+  wl.style.background=theme.wallGrad;
+  wc.style.background=theme.ceilColor;
+  wf.style.background=theme.floorGrad;
+
+  // Add wall detail based on theme
+  wb.style.boxShadow=`inset 0 0 80px ${theme.lightColor}, inset 0 0 20px rgba(0,0,0,0.3)`;
+  wf.style.boxShadow=`inset 0 0 40px rgba(0,0,0,0.4)`;
+
+  // Inject furniture SVGs
+  const container=document.getElementById("room-container");
+  // Remove old furniture
+  container.querySelectorAll(".room-item").forEach(e=>e.remove());
+
+  // Draw furniture based on type + theme
+  drawFurniture(container,theme,type,l,w,h);
+
+  // Inject ambient light orb
+  wb.innerHTML=`
+    <div style="position:absolute;inset:0;background:${theme.wallGrad}"></div>
+    <div style="position:absolute;top:15%;left:50%;transform:translate(-50%,-50%);
+      width:180px;height:100px;background:${theme.lightColor};filter:blur(40px);border-radius:50%"></div>
+    ${getWallDecor(theme, type)}
+  `;
+}
+
+function getWallDecor(theme, type){
+  const style=Object.keys(THEMES).find(k=>THEMES[k]===theme);
+  const decors={
+    "Cyberpunk":`<div style="position:absolute;bottom:30%;left:8%;width:60px;height:80px;border:1px solid rgba(0,245,255,.3);border-radius:4px;background:rgba(0,245,255,.05)"></div>
+      <div style="position:absolute;top:20%;right:12%;font-size:32px;opacity:.4">🌆</div>
+      <div style="position:absolute;bottom:20%;right:8%;width:3px;height:60px;background:linear-gradient(180deg,#00f5ff,transparent)"></div>`,
+    "Boho":`<div style="position:absolute;top:12%;left:50%;transform:translateX(-50%);font-size:36px;opacity:.6">🌿</div>
+      <div style="position:absolute;top:18%;left:18%;font-size:24px;opacity:.5">🪴</div>
+      <div style="position:absolute;top:15%;right:18%;font-size:24px;opacity:.5">🌸</div>`,
+    "Minimalist":`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:80px;height:50px;border:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.03)"></div>`,
+    "Cottagecore":`<div style="position:absolute;top:12%;left:50%;transform:translateX(-50%);font-size:32px;opacity:.55">🌷</div>
+      <div style="position:absolute;top:15%;left:15%;font-size:22px;opacity:.5">🍃</div>
+      <div style="position:absolute;top:15%;right:15%;font-size:22px;opacity:.5">🌸</div>`,
+    "Industrial":`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:100px;height:60px;border:1px solid rgba(200,135,58,.2);background:rgba(200,135,58,.04)"></div>
+      <div style="position:absolute;top:20%;right:15%;font-size:28px;opacity:.4">⚙️</div>`,
+    "Japandi":`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:1px;height:60px;background:rgba(74,103,65,.3)"></div>
+      <div style="position:absolute;top:12%;left:50%;transform:translateX(-50%);font-size:28px;opacity:.5">🌸</div>`,
+    "Art Deco":`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:90px;height:90px;border:1px solid rgba(212,160,23,.3);border-radius:50%;background:rgba(212,160,23,.04)"></div>
+      <div style="position:absolute;top:12%;left:50%;transform:translateX(-50%);font-size:30px;opacity:.55">✨</div>`,
+    "Maximalist":`<div style="position:absolute;top:8%;left:10%;font-size:22px;opacity:.6">🖼</div>
+      <div style="position:absolute;top:8%;left:30%;font-size:22px;opacity:.6">🎨</div>
+      <div style="position:absolute;top:8%;right:20%;font-size:22px;opacity:.6">🖼</div>
+      <div style="position:absolute;top:8%;right:8%;font-size:22px;opacity:.6">🎭</div>`
+  };
+  return decors[style]||"";
+}
+
+function drawFurniture(container, theme, type, l, w, h){
+  const style=Object.keys(THEMES).find(k=>THEMES[k]===theme)||"Minimalist";
+  const ac=theme.accentColor;
+  const ac2=theme.accent2;
+
+  // Furniture sets per room type - CSS-drawn inside the 3D room
+  const sets={
+    bedroom:{
+      back:`
+        <!-- Bed headboard -->
+        <div class="room-item" style="position:absolute;bottom:18%;left:50%;transform:translateX(-50%);
+          width:45%;height:28%;background:${mixColor(theme.wallColor, ac, 0.15)};
+          border-radius:6px 6px 0 0;border-top:3px solid ${ac};
+          box-shadow:0 0 20px ${theme.lightColor}">
+          <div style="position:absolute;top:20%;left:50%;transform:translateX(-50%);
+            width:70%;height:2px;background:${ac};opacity:.4"></div>
+        </div>
+        <!-- Bed body -->
+        <div class="room-item" style="position:absolute;bottom:8%;left:50%;transform:translateX(-50%);
+          width:50%;height:12%;background:${mixColor(theme.wallColor, ac, 0.08)};
+          border-radius:3px;border:1px solid rgba(255,255,255,.08)">
+          <!-- pillow 1 -->
+          <div style="position:absolute;top:10%;left:12%;width:28%;height:70%;
+            background:${mixColor('#fff',ac,.2)};border-radius:4px;opacity:.8"></div>
+          <!-- pillow 2 -->
+          <div style="position:absolute;top:10%;right:12%;width:28%;height:70%;
+            background:${mixColor('#fff',ac,.2)};border-radius:4px;opacity:.8"></div>
+        </div>
+        <!-- Nightstand -->
+        <div class="room-item" style="position:absolute;bottom:14%;right:18%;
+          width:8%;height:10%;background:${mixColor(theme.wallColor,ac,.2)};
+          border-radius:3px;border:1px solid rgba(255,255,255,.08)">
+          <div style="width:50%;height:3px;background:${ac};margin:3px auto;border-radius:2px;opacity:.7"></div>
+        </div>
+        <!-- Lamp -->
+        <div class="room-item" style="position:absolute;bottom:24%;right:19%;
+          width:3%;height:8%;background:linear-gradient(180deg,${ac},transparent);
+          opacity:.7;border-radius:50% 50% 0 0"></div>
+      `,
+    },
+    living:{
+      back:`
+        <!-- Sofa -->
+        <div class="room-item" style="position:absolute;bottom:12%;left:50%;transform:translateX(-50%);
+          width:55%;height:18%;background:${mixColor(theme.wallColor,ac,.18)};
+          border-radius:6px;border:1px solid rgba(255,255,255,.1);
+          box-shadow:0 4px 20px rgba(0,0,0,.3)">
+          <div style="position:absolute;top:0;left:0;right:0;height:40%;
+            background:${mixColor(theme.wallColor,ac,.25)};border-radius:6px 6px 0 0;
+            border-bottom:1px solid rgba(255,255,255,.08)"></div>
+          <!-- cushions -->
+          <div style="position:absolute;bottom:15%;left:10%;width:22%;height:55%;
+            background:${mixColor(theme.wallColor,ac2,.3)};border-radius:3px;opacity:.9"></div>
+          <div style="position:absolute;bottom:15%;left:38%;width:22%;height:55%;
+            background:${mixColor(theme.wallColor,ac2,.3)};border-radius:3px;opacity:.9"></div>
+          <div style="position:absolute;bottom:15%;left:66%;width:22%;height:55%;
+            background:${mixColor(theme.wallColor,ac2,.3)};border-radius:3px;opacity:.9"></div>
+        </div>
+        <!-- Coffee table -->
+        <div class="room-item" style="position:absolute;bottom:8%;left:50%;transform:translateX(-50%);
+          width:28%;height:5%;background:${mixColor(theme.wallColor,ac,.3)};
+          border-radius:3px;border:1px solid rgba(255,255,255,.12)"></div>
+        <!-- TV / decor on wall -->
+        <div class="room-item" style="position:absolute;top:28%;left:50%;transform:translateX(-50%);
+          width:30%;height:14%;background:#000;border-radius:4px;
+          border:2px solid ${ac};box-shadow:0 0 15px ${theme.lightColor}">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,rgba(0,0,0,.8),${mixColor('#000',ac,.2)});
+            border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.6">📺</div>
+        </div>
+      `
+    },
+    studio:{
+      back:`
+        <!-- Desk -->
+        <div class="room-item" style="position:absolute;bottom:14%;left:50%;transform:translateX(-50%);
+          width:50%;height:6%;background:${mixColor(theme.wallColor,ac,.25)};
+          border-radius:3px;border:1px solid rgba(255,255,255,.1);
+          box-shadow:0 0 15px ${theme.lightColor}">
+        </div>
+        <!-- Monitor -->
+        <div class="room-item" style="position:absolute;bottom:20%;left:50%;transform:translateX(-50%);
+          width:20%;height:12%;background:#050505;border-radius:4px;
+          border:2px solid ${ac};box-shadow:0 0 12px ${theme.lightColor}">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,${mixColor('#000',ac,.3)},#000);
+            border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:.7">💻</div>
+        </div>
+        <!-- Chair -->
+        <div class="room-item" style="position:absolute;bottom:8%;left:50%;transform:translateX(-50%);
+          width:14%;height:8%;background:${mixColor(theme.wallColor,ac,.2)};
+          border-radius:4px 4px 0 0;border:1px solid rgba(255,255,255,.1)"></div>
+        <!-- Shelf -->
+        <div class="room-item" style="position:absolute;top:22%;right:18%;
+          width:18%;height:3%;background:${mixColor(theme.wallColor,ac,.3)};
+          border-radius:2px;border:1px solid rgba(255,255,255,.1)">
+        </div>
+        <div class="room-item" style="position:absolute;top:30%;right:18%;
+          width:18%;height:3%;background:${mixColor(theme.wallColor,ac,.3)};
+          border-radius:2px;border:1px solid rgba(255,255,255,.1)">
+        </div>
+      `
+    },
+    dining:{
+      back:`
+        <!-- Dining table -->
+        <div class="room-item" style="position:absolute;bottom:14%;left:50%;transform:translateX(-50%);
+          width:40%;height:6%;background:${mixColor(theme.wallColor,ac,.28)};
+          border-radius:4px;border:1px solid rgba(255,255,255,.12);
+          box-shadow:0 0 20px ${theme.lightColor}">
+        </div>
+        <!-- Chairs -->
+        <div class="room-item" style="position:absolute;bottom:8%;left:28%;
+          width:10%;height:8%;background:${mixColor(theme.wallColor,ac,.18)};
+          border-radius:4px 4px 0 0;border:1px solid rgba(255,255,255,.09)"></div>
+        <div class="room-item" style="position:absolute;bottom:8%;left:43%;
+          width:10%;height:8%;background:${mixColor(theme.wallColor,ac,.18)};
+          border-radius:4px 4px 0 0;border:1px solid rgba(255,255,255,.09)"></div>
+        <div class="room-item" style="position:absolute;bottom:8%;right:27%;
+          width:10%;height:8%;background:${mixColor(theme.wallColor,ac,.18)};
+          border-radius:4px 4px 0 0;border:1px solid rgba(255,255,255,.09)"></div>
+        <!-- Pendant light -->
+        <div class="room-item" style="position:absolute;top:14%;left:50%;transform:translateX(-50%);
+          width:8%;height:10%;background:${mixColor(theme.wallColor,ac,.4)};
+          border-radius:50% 50% 40% 40%;border:1px solid ${ac};
+          box-shadow:0 0 30px ${theme.lightColor},0 10px 40px ${theme.lightColor}"></div>
+        <div class="room-item" style="position:absolute;top:8%;left:50%;transform:translateX(-50%);
+          width:1px;height:7%;background:${ac};opacity:.5"></div>
+        <!-- Centerpiece -->
+        <div class="room-item" style="position:absolute;bottom:20%;left:50%;transform:translateX(-50%);
+          font-size:18px;opacity:.7">🌹</div>
+      `
+    }
+  };
+
+  const roomType = sets[type]||sets.bedroom;
+  const div=document.createElement("div");
+  div.style.cssText="position:absolute;inset:0;pointer-events:none";
+  div.innerHTML=roomType.back||"";
+  container.appendChild(div);
+}
+
+// ── Color mixer utility ───────────────────────────────────────────────────────
+function mixColor(base, accent, ratio){
+  // Simple hex mix (approximate)
+  try{
+    const b=hexToRgb(base)||{r:40,g:30,b:50};
+    const a=hexToRgb(accent)||{r:192,g:132,b:252};
+    const r=Math.round(b.r*(1-ratio)+a.r*ratio);
+    const g=Math.round(b.g*(1-ratio)+a.g*ratio);
+    const bb=Math.round(b.b*(1-ratio)+a.b*ratio);
+    return `rgb(${r},${g},${bb})`;
+  }catch{return accent}
+}
+function hexToRgb(hex){
+  const r=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r?{r:parseInt(r[1],16),g:parseInt(r[2],16),b:parseInt(r[3],16)}:null;
+}
+
+// ── Copy prompt ───────────────────────────────────────────────────────────────
+function copyPrompt(){
+  const text=document.getElementById("prompt-text").textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.getElementById("copy-btn");
+    btn.textContent="✓ Copied!";
+    setTimeout(()=>btn.textContent="⧉ Copy Prompt",2000);
+  });
+}
+</script>
+</body>
+</html>
